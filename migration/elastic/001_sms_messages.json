@@ -1,0 +1,30 @@
+{
+  "settings": {
+    "number_of_shards": 16,
+    "number_of_replicas": 1,
+    "index": {
+      "refresh_interval": "5s"
+    }
+  },
+  "mappings": {
+    "properties": {
+      "tenant_id": { "type": "keyword" },
+      "id": { "type": "keyword" },
+      "customer_id": { "type": "keyword" },
+      "idempotency_key": { "type": "keyword" },
+      "kind": { "type": "keyword" },
+      "recipient": { "type": "keyword" },
+      "sender": { "type": "keyword" },
+      "body": {
+        "type": "text",
+        "fields": {
+          "keyword": { "type": "keyword", "ignore_above": 256 }
+        }
+      },
+      "cost": { "type": "long" },
+      "event_type": { "type": "keyword" },
+      "deadline_at": { "type": "date", "format": "strict_date_optional_time||epoch_millis" },
+      "created_at": { "type": "date", "format": "strict_date_optional_time||epoch_millis" }
+    }
+  }
+}

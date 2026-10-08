@@ -1,0 +1,82 @@
+receivers:
+  otlp:
+    protocols:
+      grpc: {}
+      http: {}
+
+processors:
+  memory_limiter:
+    limit_mib: 400
+    spike_limit_mib: 200
+    check_interval: 1s
+  batch:
+    send_batch_size: 8192
+    timeout: 1s
+  # نگهداری tail: خطا، جبران Saga، و VIP کندتر از همان آستانهٔ ۹۰ms بک‌پرشر.
+  # بقیهٔ تریس‌های سالم حدود ۱۰ درصد می‌مانند.
+  tail_sampling:
+    decision_wait: 10s
+    num_traces: 50000
+    expected_new_traces_per_sec: 5000
+    policies:
+      - name: errors
+        type: status_code
+        status_code:
+          status_codes: [ERROR]
+      - name: compensations
+        type: string_attribute
+        string_attribute:
+          key: messaging.operation.name
+          values: [compensate]
+      - name: slow-vip
+        type: and
+        and:
+          and_sub_policy:
+            - name: slow
+              type: latency
+              latency:
+                threshold_ms: 90
+            - name: vip
+              type: string_attribute
+              string_attribute:
+                key: messaging.destination.name
+                values: [sms.vip]
+      - name: baseline
+        type: probabilistic
+        probabilistic:
+          sampling_percentage: 10
+
+exporters:
+  otlp/tempo:
+    endpoint: "tempo:4317"   # ⚠️ مهم: باید با grpc_listen_port Tempo یکی باشد
+    tls:
+      insecure: true
+
+  prometheus:
+    endpoint: "0.0.0.0:8889"
+    namespace: "otel_collector"
+
+  otlphttp/promtail:
+    endpoint: "http://grafana-alloy:4318"
+    tls:
+      insecure: true
+
+service:
+  telemetry:
+    metrics:
+      address: ":8888"
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, tail_sampling, batch]
+      exporters: [otlp/tempo]
+
+    metrics:
+      receivers: [otlp]
+      processors: [memory_limiter, batch]
+      exporters: [prometheus]
+
+    logs:
+      receivers: [otlp]
+      processors: [memory_limiter, batch]
+      exporters: [otlphttp/promtail]

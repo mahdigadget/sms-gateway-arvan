@@ -1,0 +1,70 @@
+info:
+  name: ارسال Normal
+  type: http
+  seq: 2
+
+http:
+  method: POST
+  url: "{{apiUrl}}/api/v1/sms/normal"
+  headers:
+    - name: Content-Type
+      value: application/json
+  body:
+    type: json
+    data: |-
+      {
+        "tenant_id": "{{tenantId}}",
+        "destination": "09120000000",
+        "sender": "2000",
+        "body": "hello"
+      }
+  auth:
+    type: none
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "202"
+    - expression: res.body.status
+      operator: eq
+      value: queued
+    - expression: res.body.type
+      operator: eq
+      value: normal
+    - expression: res.body.idemp
+      operator: isString
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |-
+  # POST /api/v1/sms/normal
+
+  پیام عادی. مهلت زمانی ندارد و اگر صف VIP کند شود، مصرف پارتیشن normal در تلکام موقتاً متوقف می‌شود. این رفتار سمت API دیده نمی‌شود.
+
+  ## بدنه
+
+  | فیلد | الزام | توضیح |
+  | --- | --- | --- |
+  | tenant_id | بله | UUID مشتری |
+  | destination | بله | شمارهٔ مقصد |
+  | sender | بله | سرشماره |
+  | body | بله | متن |
+
+  فیلد `deadline_at` در این مسیر خوانده نمی‌شود.
+
+  ## پاسخ 202
+
+  ```json
+  {
+    "status": "queued",
+    "type": "normal",
+    "idemp": "هش پیام"
+  }
+  ```
+
+  در گزارش، این پیام‌ها `kind` برابر `normal` دارند. پیام VIP که مهلت دارد در گزارش `otp` است.

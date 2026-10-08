@@ -1,0 +1,55 @@
+opencollection: 1.0.0
+
+info:
+  name: SMS Gateway
+
+docs: |-
+  # SMS Gateway
+
+  دو سرویس جدا هستند و برونو باید به هر کدام جدا وصل شود.
+
+  | سرویس | کار | آدرس پیش‌فرض |
+  | --- | --- | --- |
+  | api | ارسال VIP و normal | `http://localhost:9095` |
+  | report | گزارش پیامک از ClickHouse | `http://localhost:9096` |
+
+  در داکر کامپوز همین دو پورت روی هاست منتشر شده‌اند. محیط **Docker** فقط پورت Redis را عوض می‌کند، چون Redis داکر روی `6380` است.
+
+  ## کاربر ماک
+
+  همهٔ درخواست‌های این کالکشن از متغیر `tenantId` استفاده می‌کنند:
+
+  `11111111-1111-1111-1111-111111111111`
+
+  بعد از ساخت جداول (`migration/`) یک‌بار اسکریپت ریشهٔ پروژه را بزن:
+
+  ```bash
+  ./mock
+  ```
+
+  با استک داکر کامپوز (پورت‌های هاست):
+
+  ```bash
+  POSTGRES_DSN='postgres://postgres:1234@127.0.0.1:5433/sms_gateway?sslmode=disable' \
+  REDIS_PORT=6380 ./mock
+  ```
+
+  اسکریپت برای همین کاربر می‌گذارد:
+  - Postgres `wallet` با موجودی `1000`
+  - Redis `wallet:{tenant}` با `available=1000` و `reserved=0` (بدون این، ارسال `503` است)
+  - پنج ردیف ماک در ClickHouse برای report (`accepted`×۳، `refunded`×۱، `rejected`×۱)
+
+  ## تکرار همان پیام
+
+  هش idempotency از tenant، مقصد، فرستنده و متن ساخته می‌شود. همان بدنه تا ۲۴ ساعت دوباره رزرو نمی‌شود و همان پاسخ `202` برمی‌گردد. اگر درخواست هنوز `processing` باشد، پاسخ `409` است.
+
+  ## گزارش
+
+  بدون `from` و `to`، هفت روز اخیر خوانده می‌شود و ردیف‌های `./mock` داخل همین بازه‌اند. بعد از ماک، `summary` تقریباً `total=5`، `accepted=3`، `refunded=1`، `rejected=1`، `net_cost=2` می‌دهد.
+
+extensions:
+  bruno:
+    ignore:
+      - node_modules
+      - .git
+    defaultEnvironment: Local

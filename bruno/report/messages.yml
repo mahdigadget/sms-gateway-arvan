@@ -1,0 +1,87 @@
+info:
+  name: فهرست پیام‌ها
+  type: http
+  seq: 1
+
+http:
+  method: GET
+  url: "{{reportUrl}}/api/v1/sms/report/messages?tenant_id={{tenantId}}&limit=50&offset=0"
+  params:
+    - name: tenant_id
+      value: "{{tenantId}}"
+      type: query
+      description: UUID مشتری. اجباری است.
+    - name: from
+      value: "2026-10-01T00:00:00Z"
+      type: query
+      disabled: true
+      description: ابتدای بازه. RFC3339 یا YYYY-MM-DD. اگر خاموش باشد، هفت روز قبل از to یا از الان.
+    - name: to
+      value: "2026-10-07T00:00:00Z"
+      type: query
+      disabled: true
+      description: پایان بازه، غیرشامل. اگر فقط from باشد، پایان همین لحظه است.
+    - name: kind
+      value: otp
+      type: query
+      disabled: true
+      description: otp برای VIP دارای مهلت، normal برای پیام عادی.
+    - name: status
+      value: accepted
+      type: query
+      disabled: true
+      description: accepted، rejected یا refunded.
+    - name: limit
+      value: "50"
+      type: query
+      description: تعداد ردیف این صفحه. از ۱ تا ۲۰۰. پیش‌فرض ۵۰.
+    - name: offset
+      value: "0"
+      type: query
+      description: جابه‌جایی صفحه. حداکثر ۱۰۰۰۰۰.
+  auth:
+    type: none
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.tenant_id
+      operator: eq
+      value: "{{tenantId}}"
+    - expression: res.body.items
+      operator: isArray
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |-
+  # GET /api/v1/sms/report/messages
+
+  پیام‌های همان مشتری را از جدید به قدیم می‌دهد. پارامترهای `from`، `to`، `kind` و `status` در این درخواست خاموش‌اند تا بازهٔ پیش‌فرض هفت روز اجرا شود. برای فیلتر، در برونو همان ردیف را روشن کنید.
+
+  ## پاسخ 200
+
+  ```json
+  {
+    "tenant_id": "11111111-1111-1111-1111-111111111111",
+    "from": "2026-09-30T12:00:00Z",
+    "to": "2026-10-07T12:00:00Z",
+    "total": 0,
+    "limit": 50,
+    "offset": 0,
+    "items": []
+  }
+  ```
+
+  هر آیتم این فیلدها را دارد: `id`، `idempotency_key`، `kind`، `recipient`، `sender`، `body`، `cost`، `status`، `created_at` و در صورت وجود `deadline_at`.
+
+  `status` در پاسخ بدون پیشوند است: `accepted`، `rejected`، `refunded`. در ClickHouse مقدار اصلی `message.accepted` و مانند آن است.
+
+  `total` تعداد کل همان فیلتر است، نه فقط همین صفحه.
+
+  بعد از `./mock` برای همین `tenantId` باید `total` برابر ۵ باشد و آیتم‌ها شامل `code 1111`، `code 2222`، `hello mock` و بقیهٔ متن‌های ماک باشند.

@@ -1,0 +1,235 @@
+name: sms-gateway-arvan
+
+networks:
+  sms:
+
+volumes:
+  postgres-data:
+  redis-data:
+  kafka-data:
+  clickhouse-data:
+  loki-data:
+  tempo-data:
+  prometheus-data:
+  grafana-data:
+
+x-app: &app
+  image: sms-gateway-arvan:local
+  build:
+    context: .
+    dockerfile: Dockerfile
+  networks: [sms]
+  restart: unless-stopped
+
+services:
+#  api:
+#    <<: *app
+#    command: ["/app/api"]
+#    environment:
+#      REDIS_ADDR: redis:6379
+#      POSTGRES_DSN: postgres://postgres:1234@postgres:5432/sms_gateway?sslmode=disable
+#      KAFKA_BROKERS: kafka:9092
+#      HTTP_PORT: ":9095"
+#      OTEL_EXPORTER_OTLP_ENDPOINT: otel-collector:4317
+#    ports:
+#      - "9095:9095"
+#    depends_on:
+#      redis:
+#        condition: service_healthy
+#      postgres:
+#        condition: service_healthy
+#      kafka:
+#        condition: service_healthy
+#    healthcheck:
+#      test: ["CMD", "curl", "-sf", "http://127.0.0.1:9095/health"]
+#      interval: 5s
+#      timeout: 3s
+#      retries: 12
+#      start_period: 20s
+
+#  report:
+#    <<: *app
+#    command: ["/app/report"]
+#    environment:
+#      CLICKHOUSE_ADDR: clickhouse:9000
+#      CLICKHOUSE_DATABASE: sms
+#      CLICKHOUSE_USER: default
+#      CLICKHOUSE_PASSWORD: clickhouse
+#      REPORT_HTTP_PORT: ":9096"
+#      OTEL_EXPORTER_OTLP_ENDPOINT: otel-collector:4317
+#    ports:
+#      - "9096:9096"
+#    depends_on:
+#      clickhouse:
+#        condition: service_healthy
+#    healthcheck:
+#      test: ["CMD", "curl", "-s", "-o", "/dev/null", "-w", "%{http_code}", "http://127.0.0.1:9096/api/v1/sms/report/summary"]
+#      interval: 5s
+#      timeout: 3s
+#      retries: 12
+#      start_period: 10s
+
+  redis:
+    image: redis:8.10.2
+    command: ["redis-server", "--appendonly", "yes"]
+    networks: [sms]
+    ports:
+      - "6380:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:18.6
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: "1234"
+      POSTGRES_DB: sms_gateway
+    networks: [sms]
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql
+      - ./deploy/postgres/init.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d sms_gateway"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  kafka:
+    image: apache/kafka:4.3.1
+    environment:
+      CLUSTER_ID: 4L6g3nShT-eMCtK--X86sw
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_NUM_PARTITIONS: 3
+    networks: [sms]
+    ports:
+      - "9094:9092"
+    volumes:
+      - kafka-data:/tmp/kraft-combined-logs
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092"]
+      interval: 10s
+      timeout: 10s
+      retries: 20
+      start_period: 20s
+    restart: unless-stopped
+
+  clickhouse:
+    image: clickhouse/clickhouse-server:26.9.12.8
+    environment:
+      CLICKHOUSE_DB: sms
+      CLICKHOUSE_USER: default
+      CLICKHOUSE_PASSWORD: clickhouse
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: 1
+    networks: [sms]
+    ports:
+      - "8123:8123"
+      - "9000:9000"
+    volumes:
+      - clickhouse-data:/var/lib/clickhouse
+      - ./internal/report/schema.sql:/docker-entrypoint-initdb.d/01-sms.sql:ro
+    healthcheck:
+      test: ["CMD", "clickhouse-client", "--user", "default", "--password", "clickhouse", "--query", "SELECT 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 15s
+    restart: unless-stopped
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.96.0
+    command: ["--config=file:/etc/otel/config.yaml"]
+    volumes:
+      - ./deploy/observability/otle.yaml:/etc/otel/config.yaml:ro
+    ports:
+      - "14317:4317"
+      - "14318:4318"
+      - "18889:8889"
+      - "18888:8888"
+    networks: [sms]
+    depends_on:
+      - grafana-alloy
+      - tempo
+      - prometheus
+    restart: unless-stopped
+
+  grafana-alloy:
+    image: grafana/alloy:v1.10.2
+    command: ["run", "--server.http.listen-addr=0.0.0.0:12345", "/etc/alloy/alloy.hcl"]
+    volumes:
+      - ./deploy/observability/alloy.hcl:/etc/alloy/alloy.hcl:ro
+    ports:
+      - "12345:12345"
+    networks: [sms]
+    depends_on:
+      - loki
+    restart: unless-stopped
+
+  loki:
+    image: grafana/loki:3.5.7
+    command: ["-config.file=/etc/loki/loki.yaml"]
+    user: "0:0"
+    volumes:
+      - ./deploy/observability/loki.yaml:/etc/loki/loki.yaml:ro
+      - loki-data:/loki
+    ports:
+      - "3100:3100"
+    networks: [sms]
+    restart: unless-stopped
+
+  tempo:
+    image: grafana/tempo:2.9.0
+    command: ["-config.file=/etc/tempo/tempo.yaml"]
+    user: "0:0"
+    volumes:
+      - ./deploy/observability/tempo.yaml:/etc/tempo/tempo.yaml:ro
+      - tempo-data:/tmp/tempo
+    ports:
+      - "3200:3200"
+    networks: [sms]
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    command: ["--config.file=/etc/prometheus/prometheus.yaml", "--storage.tsdb.path=/prometheus"]
+    volumes:
+      - ./deploy/observability/prometheus.yaml:/etc/prometheus/prometheus.yaml:ro
+      - prometheus-data:/prometheus
+    ports:
+      - "9090:9090"
+    networks: [sms]
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:12.2.0
+    environment:
+      GF_SERVER_HTTP_PORT: "3010"
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./deploy/grafana/provisioning:/etc/grafana/provisioning:ro
+    ports:
+      - "3010:3010"
+    networks: [sms]
+    depends_on:
+      - loki
+      - tempo
+      - prometheus
+    restart: unless-stopped

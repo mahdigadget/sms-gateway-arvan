@@ -1,0 +1,73 @@
+info:
+  name: ارسال VIP
+  type: http
+  seq: 1
+
+http:
+  method: POST
+  url: "{{apiUrl}}/api/v1/sms/vip"
+  headers:
+    - name: Content-Type
+      value: application/json
+  body:
+    type: json
+    data: |-
+      {
+        "tenant_id": "{{tenantId}}",
+        "destination": "09120000000",
+        "sender": "1000",
+        "body": "code 1234",
+        "deadline_at": 2
+      }
+  auth:
+    type: none
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "202"
+    - expression: res.body.status
+      operator: eq
+      value: queued
+    - expression: res.body.type
+      operator: eq
+      value: vip
+    - expression: res.body.idemp
+      operator: isString
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: |-
+  # POST /api/v1/sms/vip
+
+  پیام با اولویت بالا. `deadline_at` ثانیه است و از لحظهٔ رسیدن همین درخواست حساب می‌شود، نه از لحظهٔ produce.
+
+  اگر از `created_at` بیشتر از این مهلت بگذرد، تلکام پیام را به اپراتور نمی‌فرستد و جبران وجه را در صف می‌گذارد. خود این API در صورت قبول Kafka همچنان `202` برمی‌گرداند.
+
+  ## بدنه
+
+  | فیلد | الزام | توضیح |
+  | --- | --- | --- |
+  | tenant_id | بله | UUID مشتری |
+  | destination | بله | شمارهٔ مقصد |
+  | sender | بله | سرشماره |
+  | body | بله | متن. بخشی از هش idempotency است |
+  | deadline_at | بله | عدد صحیح بزرگ‌تر از صفر، واحد ثانیه |
+
+  ## پاسخ 202
+
+  ```json
+  {
+    "status": "queued",
+    "type": "vip",
+    "idemp": "هش پیام",
+    "tracked": true
+  }
+  ```
+
+  `tracked` فقط در VIP هست. تکرار همان چهار فیلد tenant، مقصد، فرستنده و متن، همین JSON ذخیره‌شده را تا ۲۴ ساعت دوباره می‌دهد.

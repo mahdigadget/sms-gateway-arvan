@@ -1,0 +1,27 @@
+name: Docker
+variables:
+  - name: apiUrl
+    value: http://localhost:9095
+    enabled: true
+    secret: false
+    description: پورت منتشرشدهٔ سرویس api در docker-compose.
+
+  - name: reportUrl
+    value: http://localhost:9096
+    enabled: true
+    secret: false
+    description: پورت منتشرشدهٔ سرویس report در docker-compose.
+
+  - name: tenantId
+    value: 11111111-1111-1111-1111-111111111111
+    enabled: true
+    secret: false
+    description: همان کاربر اسکریپت ./mock (با REDIS_PORT=6380 و DSN پورت 5433).
+
+  - name: redisPort
+    value: "6380"
+    enabled: true
+    secret: false
+    description: |-
+      Redis داکر روی هاست با 6380 منتشر شده، چون 6379 از قبل اشغال بود.
+      داخل شبکهٔ داکر خود Redis هنوز 6379 است.

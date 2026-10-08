@@ -1,0 +1,178 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mxfile host="app.diagrams.net" agent="Cursor" version="24.7.17" type="device">
+  <diagram id="overview" name="معماری">
+    <mxGraphModel dx="1400" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1800" pageHeight="1100" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+        <mxCell id="title" value="SMS Gateway — معماری فعلی سیستم" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;fontFamily=Tahoma;fontSize=22;fontStyle=1;fontColor=#1a1a1a;" vertex="1" parent="1">
+          <mxGeometry x="40" y="16" width="1720" height="36" as="geometry"/>
+        </mxCell>
+        <mxCell id="subtitle" value="یک پروسه (cmd/api). کانفیگ از .env: REDIS_ADDR ، POSTGRES_DSN ، KAFKA_BROKERS. پورت HTTP پیش‌فرض :9095" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;fontFamily=Tahoma;fontSize=12;fontColor=#666666;" vertex="1" parent="1">
+          <mxGeometry x="40" y="48" width="1720" height="24" as="geometry"/>
+        </mxCell>
+        <mxCell id="client" value="&lt;b&gt;کلاینت&lt;/b&gt;&lt;br&gt;POST /api/v1/sms/vip&lt;br&gt;POST /api/v1/sms/normal" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontFamily=Tahoma;fontSize=13;shadow=1;arcSize=12;" vertex="1" parent="1">
+          <mxGeometry x="40" y="160" width="230" height="90" as="geometry"/>
+        </mxCell>
+        <mxCell id="api" value="&lt;b&gt;API — Gin&lt;/b&gt;&lt;br&gt;&lt;br&gt;VIP: deadline_at عدد ثانیه، از لحظه دریافت&lt;br&gt;Normal: بدون deadline&lt;br&gt;هش idempotency از tenant + مقصد + فرستنده + متن&lt;br&gt;اول رزرو در Redis، بعد Produce و صبر برای ack&lt;br&gt;موفق: ذخیره پاسخ 202. شکست کافکا: Rollback" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontFamily=Tahoma;fontSize=13;align=right;spacingRight=12;spacingLeft=12;shadow=1;arcSize=8;" vertex="1" parent="1">
+          <mxGeometry x="360" y="100" width="420" height="170" as="geometry"/>
+        </mxCell>
+        <mxCell id="redis" value="&lt;b&gt;Redis&lt;/b&gt;&lt;br&gt;&lt;br&gt;wallet:{tenant}&lt;br&gt;available و reserved&lt;br&gt;&lt;br&gt;idemp:{tenant}:{hash} — TTL بیست‌وچهار ساعت&lt;br&gt;processing یا JSON همان پاسخ 202&lt;br&gt;&lt;br&gt;holds:processing — zset زمان رزرو&lt;br&gt;tele:dispatched:{hash}&lt;br&gt;IN_FLIGHT سپس SENT" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontFamily=Tahoma;fontSize=13;align=right;spacingRight=14;spacingLeft=10;shadow=1;verticalAlign=top;spacingTop=8;" vertex="1" parent="1">
+          <mxGeometry x="40" y="340" width="340" height="250" as="geometry"/>
+        </mxCell>
+        <mxCell id="kafka" value="&lt;b&gt;Kafka&lt;/b&gt;&lt;br&gt;&lt;br&gt;sms.vip&lt;br&gt;acks=all ، linger 0&lt;br&gt;&lt;br&gt;sms.normal&lt;br&gt;acks=all ، linger 20 ، snappy&lt;br&gt;&lt;br&gt;sms.accounting.compensation&lt;br&gt;Timestamp = زمان produce (سیگنال 90ms)&lt;br&gt;created_at = زمان دریافت API" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontFamily=Tahoma;fontSize=13;align=right;spacingRight=14;shadow=1;verticalAlign=top;spacingTop=8;" vertex="1" parent="1">
+          <mxGeometry x="440" y="340" width="340" height="250" as="geometry"/>
+        </mxCell>
+        <mxCell id="telecom" value="&lt;b&gt;Telecom&lt;/b&gt;&lt;br&gt;گروه telecom-group — یک حلقه، هر دو تاپیک&lt;br&gt;offset: earliest&lt;br&gt;&lt;br&gt;تأخیر VIP از Timestamp پیام&lt;br&gt;بالای 90ms پارتیشن normal متوقف&lt;br&gt;زیر 50ms دوباره resume&lt;br&gt;&lt;br&gt;ددلاین VIP: اگر از created_at گذشته باشد ارسال نمی‌شود&lt;br&gt;SENT یعنی تکراری. IN_FLIGHT یعنی ارسال دوباره&lt;br&gt;compensation تا ack بروکر صبر می‌کند" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontFamily=Tahoma;fontSize=13;align=right;spacingRight=12;shadow=1;verticalAlign=top;spacingTop=8;" vertex="1" parent="1">
+          <mxGeometry x="860" y="110" width="430" height="230" as="geometry"/>
+        </mxCell>
+        <mxCell id="accounting" value="&lt;b&gt;Accounting&lt;/b&gt;&lt;br&gt;گروه accounting-group&lt;br&gt;offset: earliest — هر دو تاپیک vip و normal&lt;br&gt;&lt;br&gt;بچ: outbox_events و کسر wallet در Postgres&lt;br&gt;بعد reserved در Redis کم می‌شود&lt;br&gt;خطای بچ: پردازش تکی و Rollback با هش idempotency" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontFamily=Tahoma;fontSize=13;align=right;spacingRight=12;shadow=1;verticalAlign=top;spacingTop=8;" vertex="1" parent="1">
+          <mxGeometry x="860" y="370" width="430" height="180" as="geometry"/>
+        </mxCell>
+        <mxCell id="telco" value="&lt;b&gt;درگاه اپراتور&lt;/b&gt;&lt;br&gt;sendToTelcoGateway&lt;br&gt;فعلاً فقط لاگ می‌زند" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontFamily=Tahoma;fontSize=13;dashed=1;shadow=1;align=right;spacingRight=12;" vertex="1" parent="1">
+          <mxGeometry x="1360" y="140" width="280" height="90" as="geometry"/>
+        </mxCell>
+        <mxCell id="postgres" value="&lt;b&gt;Postgres&lt;/b&gt;&lt;br&gt;&lt;br&gt;wallet&lt;br&gt;customer_id ، available_balance&lt;br&gt;&lt;br&gt;outbox_events&lt;br&gt;idempotency_key یکتا" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=12;fillColor=#f5f5f5;strokeColor=#666666;fontFamily=Tahoma;fontSize=13;shadow=1;align=right;spacingRight=16;" vertex="1" parent="1">
+          <mxGeometry x="1360" y="360" width="280" height="170" as="geometry"/>
+        </mxCell>
+        <mxCell id="compensation" value="&lt;b&gt;Compensation&lt;/b&gt;&lt;br&gt;گروه accounting-compensation-group&lt;br&gt;تاپیک sms.accounting.compensation&lt;br&gt;&lt;br&gt;برگشت پول روی wallet:{tenant}&lt;br&gt;Rollback با idemp hash، نه با مبلغ" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontFamily=Tahoma;fontSize=13;align=right;spacingRight=12;shadow=1;verticalAlign=top;spacingTop=8;" vertex="1" parent="1">
+          <mxGeometry x="440" y="660" width="400" height="150" as="geometry"/>
+        </mxCell>
+        <mxCell id="sweeper" value="&lt;b&gt;Hold Sweeper&lt;/b&gt;&lt;br&gt;همان پروسه، هر ۵ ثانیه یک‌بار&lt;br&gt;&lt;br&gt;holds قدیمی‌تر از ۲ دقیقه&lt;br&gt;اگر ردیف outbox باشد فقط از zset حذف&lt;br&gt;وگرنه پول از reserved به available برمی‌گردد و کلید idemp پاک می‌شود" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontFamily=Tahoma;fontSize=13;align=right;spacingRight=12;shadow=1;verticalAlign=top;spacingTop=8;" vertex="1" parent="1">
+          <mxGeometry x="40" y="660" width="360" height="160" as="geometry"/>
+        </mxCell>
+        <mxCell id="note" value="&lt;b&gt;خارج از این کد&lt;/b&gt;&lt;br&gt;ClickHouse و Debezium در ریپو نیستند.&lt;br&gt;هزینه هر پیام همه‌جا ۱ است.&lt;br&gt;VIP و normal یک گروه مصرف‌کننده دارند؛ حلقه جدا نشده." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#999999;fontFamily=Tahoma;fontSize=12;align=right;spacingRight=12;dashed=1;verticalAlign=top;spacingTop=8;" vertex="1" parent="1">
+          <mxGeometry x="900" y="680" width="740" height="110" as="geometry"/>
+        </mxCell>
+        <mxCell id="e1" value="درخواست" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=classic;fontFamily=Tahoma;fontSize=12;strokeWidth=2;strokeColor=#6c8ebf;" edge="1" parent="1" source="client" target="api">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e2" value="Reserve / Store / Rollback" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=classic;fontFamily=Tahoma;fontSize=12;strokeColor=#d6b656;strokeWidth=2;" edge="1" parent="1" source="api" target="redis">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e3" value="Produce و انتظار ack" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=classic;fontFamily=Tahoma;fontSize=12;strokeColor=#d79b00;strokeWidth=2;" edge="1" parent="1" source="api" target="kafka">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e4" value="telecom-group" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=classic;fontFamily=Tahoma;fontSize=12;strokeColor=#9673a6;strokeWidth=2;" edge="1" parent="1" source="kafka" target="telecom">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e5" value="accounting-group" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=classic;fontFamily=Tahoma;fontSize=12;strokeColor=#b85450;strokeWidth=2;" edge="1" parent="1" source="kafka" target="accounting">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e6" value="ارسال" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=classic;fontFamily=Tahoma;fontSize=12;strokeColor=#666666;strokeWidth=2;" edge="1" parent="1" source="telecom" target="telco">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e7" value="outbox و wallet" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=classic;fontFamily=Tahoma;fontSize=12;strokeColor=#666666;strokeWidth=2;" edge="1" parent="1" source="accounting" target="postgres">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e8" value="Commit reserved" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=classic;fontFamily=Tahoma;fontSize=12;strokeColor=#d6b656;strokeWidth=2;dashed=1;" edge="1" parent="1" source="accounting" target="redis">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="820" y="460"/>
+              <mxPoint x="820" y="500"/>
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e9" value="اگر ددلاین یا خطای ارسال" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=classic;fontFamily=Tahoma;fontSize=12;strokeColor=#b85450;strokeWidth=2;dashed=1;" edge="1" parent="1" source="telecom" target="compensation">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1075" y="620"/>
+              <mxPoint x="640" y="620"/>
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e10" value="برگشت available" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=classic;fontFamily=Tahoma;fontSize=12;strokeColor=#d6b656;strokeWidth=2;" edge="1" parent="1" source="compensation" target="redis">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e11" value="ExpireHold" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=classic;fontFamily=Tahoma;fontSize=12;strokeColor=#d6b656;strokeWidth=2;" edge="1" parent="1" source="sweeper" target="redis">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e12" value="وجود outbox؟" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=classic;fontFamily=Tahoma;fontSize=12;strokeColor=#666666;dashed=1;" edge="1" parent="1" source="sweeper" target="postgres">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="220" y="900"/>
+              <mxPoint x="1500" y="900"/>
+            </Array>
+          </mxGeometry>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+  <diagram id="vip-flow" name="جریان VIP">
+    <mxGraphModel dx="1100" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1100" pageHeight="1680" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+        <mxCell id="t" value="جریان یک پیام VIP" style="text;html=1;strokeColor=none;fillColor=none;align=right;fontFamily=Tahoma;fontSize=20;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="40" y="20" width="980" height="36" as="geometry"/>
+        </mxCell>
+        <mxCell id="s1" value="&lt;b&gt;۱. دریافت&lt;/b&gt;&lt;br&gt;POST /api/v1/sms/vip. فیلد deadline_at مثلاً ۲، یعنی دو ثانیه از همین لحظه. Normal این فیلد را ندارد." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontFamily=Tahoma;fontSize=13;align=right;spacingRight=14;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="80" y="70" width="900" height="64" as="geometry"/>
+        </mxCell>
+        <mxCell id="s2" value="&lt;b&gt;۲. رزرو Redis&lt;/b&gt;&lt;br&gt;کلید نباشد: available کم، reserved زیاد، مقدار processing، عضو holds:processing. مقدار processing: پاسخ 409. JSON ذخیره‌شده: همان 202 قبلی، بدون کسر دوباره." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontFamily=Tahoma;fontSize=13;align=right;spacingRight=14;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="80" y="164" width="900" height="72" as="geometry"/>
+        </mxCell>
+        <mxCell id="s3" value="&lt;b&gt;۳. کافکا&lt;/b&gt;&lt;br&gt;تاپیک sms.vip با acks=all و linger 0. created_at زمان API است و داخل Produce عوض نمی‌شود. Timestamp زمان produce است. اگر کلاینت قبل از Produce قطع شود، رزرو برمی‌گردد. بعد از قبول Produce فقط منتظر گزارش تحویل می‌مانیم." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontFamily=Tahoma;fontSize=13;align=right;spacingRight=14;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="80" y="266" width="900" height="80" as="geometry"/>
+        </mxCell>
+        <mxCell id="s4" value="&lt;b&gt;۴. پاسخ به کلاینت&lt;/b&gt;&lt;br&gt;JSON وضعیت 202 روی کلید idempotency ذخیره می‌شود. اگر Produce شکست بخورد Rollback همان هش را صدا می‌زند." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontFamily=Tahoma;fontSize=13;align=right;spacingRight=14;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="80" y="376" width="900" height="64" as="geometry"/>
+        </mxCell>
+        <mxCell id="s5" value="&lt;b&gt;۵. خواندن تلکام&lt;/b&gt;&lt;br&gt;گروه telecom-group هر دو تاپیک را در یک حلقه می‌خواند. offset از earliest. تأخیر VIP از Timestamp: بالای ۹۰ میلی‌ثانیه پارتیشن normal متوقف، زیر ۵۰ میلی‌ثانیه resume. این آستانه جدا از deadline_at است." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontFamily=Tahoma;fontSize=13;align=right;spacingRight=14;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="80" y="470" width="900" height="80" as="geometry"/>
+        </mxCell>
+        <mxCell id="s6" value="&lt;b&gt;۶. ددلاین&lt;/b&gt;&lt;br&gt;اگر now منهای created_at از deadline_at ثانیه بیشتر شد، به اپراتور نمی‌رود. رویداد compensation منتشر می‌شود و تا ack صبر می‌کند. بدون ack آفست کامیت نمی‌شود." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontFamily=Tahoma;fontSize=13;align=right;spacingRight=14;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="80" y="580" width="900" height="72" as="geometry"/>
+        </mxCell>
+        <mxCell id="s7" value="&lt;b&gt;۷. قفل ارسال&lt;/b&gt;&lt;br&gt;SetNX کلید tele:dispatched با مقدار IN_FLIGHT. اگر از قبل SENT باشد پیام رد می‌شود. اگر IN_FLIGHT مانده باشد (کرش وسط کار) دوباره ارسال می‌شود. خطای Redis آفست را کامیت نمی‌کند." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontFamily=Tahoma;fontSize=13;align=right;spacingRight=14;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="80" y="682" width="900" height="72" as="geometry"/>
+        </mxCell>
+        <mxCell id="s8" value="&lt;b&gt;۸. اپراتور&lt;/b&gt;&lt;br&gt;sendToTelcoGateway. خطا: کلید پاک، compensation، و فقط بعد از ack آفست می‌رود. موفق: مقدار کلید SENT می‌شود." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontFamily=Tahoma;fontSize=13;align=right;spacingRight=14;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="80" y="784" width="900" height="64" as="geometry"/>
+        </mxCell>
+        <mxCell id="s9" value="&lt;b&gt;۹. حسابداری&lt;/b&gt;&lt;br&gt;گروه accounting-group همان پیام را جدا می‌خواند. بچ داخل Postgres: ردیف outbox و کسر available_balance. سپس reserved در Redis کم می‌شود. شکست بچ به پردازش تکی می‌رود و Rollback هش idempotency را می‌گیرد." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontFamily=Tahoma;fontSize=13;align=right;spacingRight=14;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="80" y="878" width="900" height="80" as="geometry"/>
+        </mxCell>
+        <mxCell id="s10" value="&lt;b&gt;۱۰. جبران&lt;/b&gt;&lt;br&gt;گروه accounting-compensation-group پول را به wallet:{tenant} برمی‌گرداند. آرگومان Rollback هش است تا کلید processing پاک شود، نه رشته مبلغ." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontFamily=Tahoma;fontSize=13;align=right;spacingRight=14;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="80" y="988" width="900" height="72" as="geometry"/>
+        </mxCell>
+        <mxCell id="s11" value="&lt;b&gt;۱۱. رزرو یتیم&lt;/b&gt;&lt;br&gt;اگر پروسه بعد از Reserve و قبل از نشستن پیام در کافکا بمیرد، Hold Sweeper هر ۵ ثانیه holds قدیمی‌تر از ۲ دقیقه را می‌بیند. وجود outbox یعنی پول را برنگردان. نبودنش یعنی ExpireHold." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontFamily=Tahoma;fontSize=13;align=right;spacingRight=14;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="80" y="1090" width="900" height="80" as="geometry"/>
+        </mxCell>
+        <mxCell id="s12" value="&lt;b&gt;Normal&lt;/b&gt;&lt;br&gt;همان مسیر، بدون deadline_at و بدون دراپ زمانی. Produce روی sms.normal با linger بیست میلی‌ثانیه و snappy است. بک‌پرشر ۹۰ و ۵۰ میلی‌ثانیه فقط مصرف پارتیشن normal را در همان حلقه تلکام نگه می‌دارد." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontFamily=Tahoma;fontSize=13;align=right;spacingRight=14;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="80" y="1210" width="900" height="80" as="geometry"/>
+        </mxCell>
+        <mxCell id="a1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=classic;strokeColor=#999999;" edge="1" parent="1" source="s1" target="s2">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="a2" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=classic;strokeColor=#999999;" edge="1" parent="1" source="s2" target="s3">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="a3" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=classic;strokeColor=#999999;" edge="1" parent="1" source="s3" target="s4">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="a4" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=classic;strokeColor=#999999;" edge="1" parent="1" source="s4" target="s5">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="a5" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=classic;strokeColor=#999999;" edge="1" parent="1" source="s5" target="s6">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="a6" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=classic;strokeColor=#999999;" edge="1" parent="1" source="s6" target="s7">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="a7" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=classic;strokeColor=#999999;" edge="1" parent="1" source="s7" target="s8">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="a8" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=classic;strokeColor=#999999;" edge="1" parent="1" source="s8" target="s9">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="a9" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=classic;strokeColor=#999999;" edge="1" parent="1" source="s9" target="s10">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="a10" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=classic;strokeColor=#999999;" edge="1" parent="1" source="s10" target="s11">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
